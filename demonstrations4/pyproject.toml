@@ -1,0 +1,24 @@
+[project]
+name = "sdm-earcons"
+version = "0.1.0"
+description = "Tuning a graded family of earcons with the Spiral Discovery Method, sounded by a RAVE model through SuperCollider."
+readme = "README.md"
+
+# 3.10 is a hard floor, not a preference: sdm-new/sdm/sdm.py annotates with
+# `np.ndarray | None`, which is evaluated at import time on Python < 3.10 and
+# raises. macOS system Python is often 3.9, so uv fetching its own interpreter
+# is the point of using it here.
+requires-python = ">=3.10"
+
+# Only two. The OSC layer and the web layer are standard library on purpose:
+# this has to run on a machine the developer cannot reach, so every avoidable
+# dependency is another way for it to fail on first contact.
+# scipy is needed only by the vendored sktensor in sdm-new/.
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
+
+[tool.uv]
+# sdmearcon/ is imported from the project root, not installed as a wheel.
+package = false

@@ -1,0 +1,331 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>SDM earcon tuning</title>
+<style>
+ :root { --bg:#14161a; --panel:#1c2027; --line:#2c313b; --fg:#dfe3ea;
+         --dim:#8b93a3; --hot:#e0a458; --ok:#6fbf73; --bad:#d1596b; --sel:#3a4353;
+         --warn:#e0a458; }
+ * { box-sizing:border-box }
+ body { margin:0; background:var(--bg); color:var(--fg);
+        font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+ header { padding:12px 18px; border-bottom:1px solid var(--line);
+          display:flex; gap:18px; align-items:baseline; flex-wrap:wrap }
+ h1 { font-size:14px; margin:0; font-weight:600; letter-spacing:.04em }
+ #status { color:var(--dim) } #status.busy { color:var(--hot) }
+ #status.bad { color:var(--bad) }
+ main { display:grid; grid-template-columns:360px 1fr }
+ .panel { padding:16px 18px; border-right:1px solid var(--line); min-height:calc(100vh - 50px) }
+ h2 { font-size:11px; text-transform:uppercase; letter-spacing:.12em;
+      color:var(--dim); margin:20px 0 10px; font-weight:600 }
+ h2:first-child { margin-top:0 }
+ .ctl { margin-bottom:14px }
+ .ctl label { display:flex; justify-content:space-between; margin-bottom:4px }
+ .ctl .val { color:var(--hot) }
+ input[type=range] { width:100%; accent-color:var(--hot) }
+ select, button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+                  border-radius:4px; padding:6px 10px; font:inherit; cursor:pointer }
+ button:hover { border-color:var(--hot) }
+ button.on { border-color:var(--hot); color:var(--hot) }
+ button.danger { border-color:#5a2a33 } button.danger:hover { border-color:var(--bad) }
+ .row { display:flex; gap:8px; flex-wrap:wrap }
+ .readout { color:var(--dim); font-size:11px; margin-top:-6px; margin-bottom:14px }
+ table { border-collapse:collapse; width:100%; font-size:12px }
+ th,td { padding:5px 7px; text-align:right; border-bottom:1px solid var(--line);
+         white-space:nowrap }
+ /* The arrows take a column of their own so the numbers stay in tidy columns.
+    Fixed and narrow, and the padding above came down to pay for it, so the
+    table is no wider than it was. */
+ th.ord, td.ord { width:26px; padding:2px 2px 2px 6px; text-align:left }
+ .ord button { padding:0 3px; font-size:9px; line-height:11px; display:block;
+               color:var(--dim) }
+ .ord button:hover:enabled { color:var(--fg) }
+ .ord button:disabled { opacity:.25; cursor:default }
+ /* A latent cell is an input that looks like text until you touch it. */
+ input.zin { width:52px; background:transparent; border:1px solid transparent;
+             color:var(--dim); font:inherit; text-align:right; padding:1px 3px;
+             border-radius:3px }
+ tr.sel input.zin { color:var(--fg) }
+ input.zin:hover { border-color:var(--line) }
+ input.zin:focus { border-color:var(--hot); color:var(--fg); outline:none;
+                   background:#12151b }
+ .tight { color:var(--warn) }
+ th { color:var(--dim); font-weight:600; font-size:10px; text-transform:uppercase;
+      letter-spacing:.08em }
+ td:first-child, th:first-child { text-align:left }
+ tbody tr { cursor:pointer } tbody tr:hover { background:#20242c }
+ tbody tr.sel { background:var(--sel) }
+ tbody tr.sel td:first-child { box-shadow:inset 3px 0 0 var(--hot) }
+ .z { color:var(--dim) } tr.sel .z { color:var(--fg) }
+ .usable { color:var(--ok) } .unusable { color:var(--bad) }
+ .hr { color:var(--dim); font-size:10px }
+ .note { color:var(--dim); margin:10px 18px 24px; max-width:78ch }
+ .pending td { color:#5b626f }
+ .play { padding:1px 7px; font-size:11px }
+</style></head><body>
+<header>
+  <h1>SDM EARCON TUNING</h1>
+  <span id="status">connecting</span>
+  <span id="meta" style="color:var(--dim)"></span>
+</header>
+<main>
+ <div class="panel">
+  <h2>Spiral (SDM)</h2>
+  <div class="ctl"><label>tuning</label>
+    <div class="row"><button id="t_all">whole family</button>
+      <span id="t_which" style="color:var(--hot); align-self:center"></span></div></div>
+  <div class="ctl"><label>traverse <span class="val" id="v_t"></span></label>
+    <input type="range" id="t" min="-2" max="2" step="0.002"></div>
+  <div class="ctl"><label>sensitivity <span class="val" id="v_sens"></span></label>
+    <input type="range" id="sens" min="0.05" max="3" step="0.01"></div>
+  <div class="readout" id="sdm_read"></div>
+  <div class="row"><button id="reset">reset to seed family</button></div>
+
+  <h2>Envelope</h2>
+  <div class="ctl"><label>attack <span class="val" id="v_atk"></span></label>
+    <input type="range" id="atk" min="0.001" max="0.2" step="0.001"></div>
+  <div class="ctl"><label>sustain <span class="val" id="v_dur"></span></label>
+    <input type="range" id="dur" min="0.02" max="1.0" step="0.005"></div>
+  <div class="ctl"><label>release <span class="val" id="v_rel"></span></label>
+    <input type="range" id="rel" min="0.02" max="1.0" step="0.005"></div>
+
+  <h2>Structure</h2>
+  <div class="ctl"><label>rhythm</label><select id="pattern"></select></div>
+  <div class="ctl"><label>urgency <span class="val" id="v_urgency"></span></label>
+    <input type="range" id="urgency" min="-1.5" max="1.5" step="0.05"></div>
+
+  <h2>Presets</h2>
+  <div class="ctl"><div class="row">
+    <input id="pname" placeholder="name" style="flex:1; min-width:110px;
+      background:var(--panel); color:var(--fg); border:1px solid var(--line);
+      border-radius:4px; padding:6px 10px; font:inherit">
+    <button id="save">save</button></div></div>
+  <div class="ctl"><div class="row">
+    <select id="plist" style="flex:1; min-width:110px"></select>
+    <button id="load">load</button></div></div>
+  <div class="readout">Saved to output/presets/. Loading restores the family and
+    the controls, then re-measures: gains in the file are provenance, not
+    settings. The master gain is never restored.</div>
+
+  <h2>Output</h2>
+  <div class="ctl"><label>master gain <span class="val" id="v_master"></span></label>
+    <input type="range" id="master" min="0" max="1" step="0.01"></div>
+  <div class="row">
+    <button id="sweep">sweep family</button>
+    <button id="panic" class="danger">panic</button>
+  </div>
+ </div>
+
+ <div>
+  <table><thead><tr>
+    <th class="ord"></th><th>#</th><th>z1</th><th>z2</th><th>z3</th><th>z4</th>
+    <th>peak dBFS</th><th>K-rms dB</th><th>crest</th><th>gain dB</th><th></th><th></th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+  <p class="note"><b>The arrows reorder the family.</b> Moving an earcon up or
+  down changes no sound, so nothing is re-measured: the measurements, the gains
+  and the recorded buffers move with it. <b>The z values can be typed in
+  directly.</b> That is the same edit a committed traverse makes — the working
+  family changes and the decomposition is rebuilt from it — so the spiral
+  carries on from the coordinates you typed, and only that earcon is
+  re-measured.</p>
+
+  <p class="note"><b>Click a row to choose which earcon the spiral tunes</b>, or
+  "whole family" to move all ten together. The traverse advances the core tensor
+  mix and that earcon's tuning weight at the same time, so it follows a spiral:
+  broadly along the principal component, deviating as it goes. Sensitivity is in
+  family widths per turn, so 1.0 means one full turn moves the earcon by about
+  the family's own spread.</p>
+  <p class="note">Moving the traverse previews. Releasing it commits, and the
+  family becomes the new origin, so the traverse recentres on zero. A
+  per-earcon edit re-renders only that earcon, about 0.8 s; a whole-family move
+  or an envelope change re-renders all ten, about 3 s. Nothing is auditioned
+  before it is measured, because the level a set of latents produces cannot be
+  predicted from them.</p>
+  <p class="note">Each earcon is <b>recorded once</b> when it is measured, and
+  played back from that recording. The model emits a continuously varying
+  texture even at a fixed latent, so gating it live gave a different sound every
+  time. Playing the recording means every repetition is identical, and what you
+  hear is bit-for-bit what was measured.</p>
+ </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const SLIDERS = ["t","sens","atk","dur","rel","urgency"];
+// `editing` is to a latent field what `dragging` is to a slider: while the
+// cursor is in one, a poll reply must not rewrite the table underneath it.
+let state = null, dragging = false, editing = false;
+
+// Every request gets a sequence number and only the newest reply is applied.
+//
+// Without this the slider wobbled after release: a drag fires one POST per
+// tick, the replies come back out of order, and each one rewrote the slider
+// with a position the user had already moved past. The commit reply (t back to
+// zero) would land, then a stale mid-drag reply would land after it and drag
+// the handle backwards again.
+let seq = 0, applied = 0, inflight = false, pending = null;
+
+async function send(body){
+  const my = ++seq;
+  const r = await fetch("/", {method:"POST", headers:{"Content-Type":"application/json"},
+                             body: JSON.stringify(body)});
+  const data = await r.json();
+  if(my < applied) return;      // a newer reply already won
+  applied = my;
+  render(data);
+}
+
+async function post(body){
+  // Coalesce drags: keep at most one request in flight and remember only the
+  // newest, so the server sees the latest value instead of a backlog.
+  if(body.action === "set" && inflight){ pending = body; return; }
+  if(body.action !== "set") pending = null;   // a commit supersedes any pending drag
+  inflight = true;
+  try { await send(body); }
+  finally {
+    inflight = false;
+    if(pending){ const next = pending; pending = null; post(next); }
+  }
+}
+function vals(){
+  const o = {}; SLIDERS.forEach(k => o[k] = parseFloat($(k).value));
+  o.pattern = $("pattern").value;
+  o.target = (state && state.target !== null && state.target !== undefined) ? state.target : "all";
+  return o;
+}
+const fmt = (x,n=2) => (x === null || x === undefined) ? "" : x.toFixed(n);
+
+function render(s){
+  state = s;
+  const st = $("status");
+  st.textContent = s.measuring ? "measuring..." : s.status;
+  st.className = s.measuring ? "busy" : (s.armed === false ? "bad" : "");
+  $("meta").textContent = [
+    s.pool ? "pool " + s.pool : "",
+    s.target_k !== null ? "target " + s.target_k + " dB" : "",
+    s.error ? "ERROR " + s.error : ""
+  ].filter(Boolean).join("   ");
+
+  if(!dragging){
+    SLIDERS.forEach(k => $(k).value = s[k]);
+    $("master").value = s.master;
+    if($("pattern").options.length === 0){
+      s.patterns.forEach(p => { const o = document.createElement("option");
+        o.value = o.textContent = p; $("pattern").appendChild(o); });
+    }
+    $("pattern").value = s.pattern;
+    const pl = $("plist"), keep = pl.value;
+    const want = (s.presets || []).join("\u0000");
+    if(pl.dataset.have !== want){
+      pl.innerHTML = (s.presets || []).map(p => `<option>${p}</option>`).join("");
+      pl.dataset.have = want;
+      if((s.presets || []).includes(keep)) pl.value = keep;
+    }
+  }
+  // the admissible traverse depends on phase and urgency, so the slider's
+  // range comes from the server rather than the markup. Only while the user is
+  // not holding it: changing min/max mid-drag makes the browser clamp the
+  // handle and jump.
+  if(!dragging){ $("t").min = s.t_lo; $("t").max = s.t_hi; }
+  $("t_all").className = (s.target === null) ? "on" : "";
+  $("t_which").textContent = (s.target === null) ? "" : ("earcon " + s.target);
+  $("v_t").textContent       = s.t.toFixed(3) + " turns";
+  $("v_sens").textContent    = s.sens.toFixed(2) + " widths/turn";
+  $("v_atk").textContent     = (s.atk*1000).toFixed(0) + " ms";
+  $("v_dur").textContent     = (s.dur*1000).toFixed(0) + " ms";
+  $("v_rel").textContent     = (s.rel*1000).toFixed(0) + " ms";
+  $("v_urgency").textContent = s.urgency.toFixed(2);
+  $("v_master").textContent  = s.master.toFixed(2);
+  $("sdm_read").textContent =
+    "phase " + s.phase.toFixed(3) + "   family width " + s.spread.toFixed(2) +
+    "   tuning weight " + s.weight.toFixed(4) +
+    "   travel [" + s.t_lo + ", " + s.t_hi + "]";
+
+  if(editing) return;          // never redraw a field being typed into
+  const last = s.rows.length - 1;
+  $("tbody").innerHTML = s.rows.map(r => {
+    const pending = r.peak === null;
+    // Headroom is how much boost is left before this earcon is refused. It is
+    // shown because a family can sit a fraction of a dB from that cliff with
+    // nothing saying so, and then come back unusable after any re-measure.
+    const hr = (r.headroom === null || r.headroom === undefined) ? "" :
+      `<span class="hr ${r.headroom < 2 ? 'tight' : ''}"> ${r.headroom.toFixed(1)} dB</span>`;
+    const mark = pending ? "" : (r.usable
+      ? `<span class="usable">ok</span>${hr}`
+      : '<span class="unusable">unusable</span>');
+    return `<tr class="${pending?'pending':''} ${r.selected?'sel':''}" data-i="${r.i}">
+      <td class="ord"><button class="up" data-m="${r.i}" ${r.i===0?'disabled':''}
+            title="move up">&#9650;</button><button class="dn" data-m="${r.i}"
+            ${r.i===last?'disabled':''} title="move down">&#9660;</button></td>
+      <td>${r.i}</td>
+      ${r.z.map((v,j)=>`<td><input class="zin" data-i="${r.i}" data-j="${j}"
+            value="${v.toFixed(2)}" inputmode="decimal"></td>`).join("")}
+      <td>${fmt(r.peak)}</td><td>${fmt(r.krms)}</td>
+      <td>${fmt(r.crest)}</td><td>${fmt(r.gain)}</td><td>${mark}</td>
+      <td><button class="play" data-p="${r.i}">&#9654;</button></td></tr>`;
+  }).join("");
+  document.querySelectorAll("#tbody tr").forEach(tr =>
+    tr.onclick = () => post(Object.assign({action:"set"}, vals(),
+                                          {target: parseInt(tr.dataset.i)})));
+  document.querySelectorAll("#tbody .play").forEach(b =>
+    b.onclick = ev => { ev.stopPropagation();
+      post({action:"play", index: parseInt(b.dataset.p)}); });
+  // Reordering is instant: no sound changes, so nothing is re-measured. The
+  // measurements and the recorded buffers move with their earcon.
+  document.querySelectorAll("#tbody .ord button").forEach(b =>
+    b.onclick = ev => { ev.stopPropagation();
+      post({action:"move", index: parseInt(b.dataset.m),
+            delta: b.classList.contains("up") ? -1 : 1}); });
+  // Typing a latent in is the same edit a committed traverse makes, so it
+  // re-measures that one earcon and the spiral continues from the new point.
+  document.querySelectorAll("#tbody input.zin").forEach(inp => {
+    inp.onclick = ev => ev.stopPropagation();
+    inp.onfocus = () => { editing = true; };
+    inp.onblur  = () => { editing = false; };
+    inp.onkeydown = ev => { if(ev.key === "Enter") inp.blur(); 
+                            if(ev.key === "Escape") { editing = false; render(state); } };
+    inp.onchange = ev => {
+      ev.stopPropagation();
+      editing = false;
+      const i = parseInt(inp.dataset.i);
+      const row = state.rows.find(r => r.i === i);
+      const vals_ = row.z.slice();
+      const v = parseFloat(inp.value);
+      if(!isFinite(v)) { render(state); return; }
+      vals_[parseInt(inp.dataset.j)] = v;
+      post({action:"setz", index:i, values:vals_});
+    };
+  });
+}
+
+SLIDERS.forEach(k => {
+  const el = $(k);
+  el.addEventListener("input", () => { dragging = true;
+    post(Object.assign({action:"set"}, vals())); });
+  el.addEventListener("change", () => { dragging = false;
+    // Sensitivity only scales the next traverse, so it needs no re-render.
+    // Everything else changes the audio, and since each earcon is a recorded
+    // buffer the envelope is part of it and has to be rendered again.
+    const act = (k === "sens") ? "set" : "commit";
+    post(Object.assign({action:act}, vals())); });
+});
+$("pattern").addEventListener("change", () => post(Object.assign({action:"set"}, vals())));
+$("master").addEventListener("input", () =>
+  post({action:"master", value: parseFloat($("master").value)}));
+$("t_all").onclick = () => post(Object.assign({action:"set"}, vals(), {target:"all"}));
+$("sweep").onclick = () => post({action:"sweep"});
+$("panic").onclick = () => post({action:"panic"});
+$("reset").onclick  = () => post({action:"reset"});
+$("save").onclick   = () => post({action:"export", name: $("pname").value});
+$("load").onclick   = () => { const n = $("plist").value;
+  if(n) post({action:"import", name: n}); };
+
+async function poll(){
+  if(!dragging && !inflight){
+    const my = ++seq;
+    try {
+      const data = await (await fetch("/state")).json();
+      if(my >= applied){ applied = my; render(data); }
+    } catch(e){}
+  }
+  setTimeout(poll, 400);
+}
+post({action:"ping"}).then(poll);
+</script></body></html>
